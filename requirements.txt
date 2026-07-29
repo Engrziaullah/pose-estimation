@@ -2,7 +2,10 @@
 # legacy `mp.solutions.pose` API this app (and your notebook) relies on.
 mediapipe==0.10.14
 flask>=2.3
-opencv-python>=4.9
+# headless build: identical API for this app (no cv2.imshow/GUI calls used),
+# but avoids needing X11/GTK system libraries in the production container.
+opencv-python-headless>=4.9
 numpy<2.0
 pandas>=2.0
 werkzeug>=2.3
+gunicorn>=21.2,<22

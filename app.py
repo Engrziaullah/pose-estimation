@@ -46,7 +46,7 @@ SPEED_PRESETS = {
 }
 
 app = Flask(__name__)
-app.secret_key = "pose-estimation-dev-key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "pose-estimation-dev-key")
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB upload cap
 
 # Single shared live-feed generator instance (created lazily)

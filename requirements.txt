@@ -1,0 +1,8 @@
+# mediapipe is pinned: versions newer than ~0.10.14/0.10.21 removed the
+# legacy `mp.solutions.pose` API this app (and your notebook) relies on.
+mediapipe==0.10.14
+flask>=2.3
+opencv-python>=4.9
+numpy<2.0
+pandas>=2.0
+werkzeug>=2.3

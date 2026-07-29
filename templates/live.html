@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Live · Kinetra{% endblock %}
+{% block content %}
+
+<section class="mode-page">
+  <div class="mode-page-head reveal">
+    <span class="eyebrow">Mode 03 · Real-time</span>
+    <h1>Live camera</h1>
+    <p class="hero-sub">
+      Opens the webcam on the machine running this server and streams the
+      tracked skeleton back in real time.
+    </p>
+  </div>
+
+  <div class="live-stage reveal">
+    <div class="live-frame" id="live-frame">
+      <img id="live-img" alt="Live pose tracking feed" src="">
+
+      <div class="viewfinder" aria-hidden="true">
+        <span class="corner tl"></span>
+        <span class="corner tr"></span>
+        <span class="corner bl"></span>
+        <span class="corner br"></span>
+        <span class="scanline"></span>
+      </div>
+
+      <div class="live-hud">
+        <div class="live-badge"><span class="live-dot-badge"></span> LIVE</div>
+        <div class="live-timer mono" id="live-timer">00:00</div>
+      </div>
+
+      <div class="live-placeholder" id="live-placeholder">
+        <svg viewBox="0 0 48 48" width="40" height="40">
+          <circle cx="24" cy="24" r="17" fill="none" stroke="var(--border)" stroke-width="2"/>
+          <circle cx="24" cy="24" r="4" fill="var(--text-faint)"/>
+        </svg>
+        <p>Camera is off</p>
+      </div>
+    </div>
+
+    <div class="live-controls">
+      <button id="start-live" class="btn btn-primary">
+        <span class="btn-label">Start camera</span>
+      </button>
+      <button id="stop-live" class="btn btn-ghost" disabled>Stop camera</button>
+    </div>
+    <p class="live-note">
+      Runs entirely on the server's own webcam via OpenCV — grant camera
+      access to whichever machine is running <code class="mono">app.py</code>.
+    </p>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const img = document.getElementById('live-img');
+  const startBtn = document.getElementById('start-live');
+  const stopBtn = document.getElementById('stop-live');
+  const frame = document.getElementById('live-frame');
+  const placeholder = document.getElementById('live-placeholder');
+  const timerEl = document.getElementById('live-timer');
+
+  let timerInterval = null;
+  let startedAt = null;
+
+  function formatTime(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const ss = String(totalSec % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
+  startBtn.addEventListener('click', () => {
+    img.src = "{{ url_for('video_feed') }}?t=" + Date.now();
+    frame.classList.add('is-live');
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    startedAt = Date.now();
+    timerEl.textContent = '00:00';
+    timerInterval = setInterval(() => {
+      timerEl.textContent = formatTime(Date.now() - startedAt);
+    }, 1000);
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    await fetch("{{ url_for('stop_live') }}", { method: 'POST' });
+    img.src = "";
+    frame.classList.remove('is-live');
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    clearInterval(timerInterval);
+    timerEl.textContent = '00:00';
+  });
+
+  img.addEventListener('error', () => {
+    if (frame.classList.contains('is-live')) {
+      // Camera failed to open server-side
+      frame.classList.remove('is-live');
+      placeholder.querySelector('p').textContent = 'Could not open the camera.';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      clearInterval(timerInterval);
+    }
+  });
+</script>
+{% endblock %}

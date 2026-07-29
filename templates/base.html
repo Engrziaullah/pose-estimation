@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Kinetra · Pose Estimation{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><circle cx=%2216%22 cy=%227%22 r=%223.4%22 fill=%22%238FD6F0%22/><line x1=%2216%22 y1=%2210.4%22 x2=%2216%22 y2=%2218%22 stroke=%22%23E0973A%22 stroke-width=%221.8%22/><line x1=%2216%22 y1=%2213%22 x2=%228%22 y2=%2217%22 stroke=%22%23E0973A%22 stroke-width=%221.8%22/><line x1=%2216%22 y1=%2213%22 x2=%2224%22 y2=%2217%22 stroke=%22%23E0973A%22 stroke-width=%221.8%22/><line x1=%2216%22 y1=%2218%22 x2=%2210%22 y2=%2227%22 stroke=%22%23E0973A%22 stroke-width=%221.8%22/><line x1=%2216%22 y1=%2218%22 x2=%2222%22 y2=%2227%22 stroke=%22%23E0973A%22 stroke-width=%221.8%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="skeleton-field" aria-hidden="true"></div>
+<div class="aurora" aria-hidden="true">
+  <span class="aurora-blob a"></span>
+  <span class="aurora-blob b"></span>
+  <span class="aurora-blob c"></span>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar" id="topbar">
+  <a href="{{ url_for('home') }}" class="brand">
+    <span class="brand-mark">
+      <svg viewBox="0 0 32 32" width="26" height="26">
+        <circle cx="16" cy="7" r="3.4" fill="var(--accent)"/>
+        <line x1="16" y1="10.4" x2="16" y2="18" stroke="var(--accent-dim)" stroke-width="1.6"/>
+        <line x1="16" y1="13" x2="8" y2="17" stroke="var(--accent-dim)" stroke-width="1.6"/>
+        <line x1="16" y1="13" x2="24" y2="17" stroke="var(--accent-dim)" stroke-width="1.6"/>
+        <line x1="16" y1="18" x2="10" y2="27" stroke="var(--accent-dim)" stroke-width="1.6"/>
+        <line x1="16" y1="18" x2="22" y2="27" stroke="var(--accent-dim)" stroke-width="1.6"/>
+        <circle cx="8" cy="17" r="2" fill="var(--accent-2)"/>
+        <circle cx="24" cy="17" r="2" fill="var(--accent-2)"/>
+        <circle cx="10" cy="27" r="2" fill="var(--accent-2)"/>
+        <circle cx="22" cy="27" r="2" fill="var(--accent-2)"/>
+      </svg>
+    </span>
+    <span class="brand-name">Kinetra</span>
+  </a>
+
+  <nav class="topnav" id="topnav">
+    <a href="{{ url_for('image_mode') }}" class="{{ 'is-active' if request.path == '/image' else '' }}">Image</a>
+    <a href="{{ url_for('video_mode') }}" class="{{ 'is-active' if request.path == '/video' else '' }}">Video</a>
+    <a href="{{ url_for('live_mode') }}" class="{{ 'is-active' if request.path == '/live' else '' }}">Live</a>
+  </nav>
+
+  <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<main class="page">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <span>Kinetra — built on MediaPipe Pose, 33 landmarks per frame.</span>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

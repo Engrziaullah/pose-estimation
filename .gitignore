@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# App runtime data (user uploads and generated results) - folders are kept
+# via .gitkeep, but their contents shouldn't be committed.
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep

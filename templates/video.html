@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Video · Kinetra{% endblock %}
+{% block content %}
+
+<section class="mode-page">
+  <div class="mode-page-head reveal">
+    <span class="eyebrow">Mode 02 · Tracked</span>
+    <h1>Upload a video</h1>
+    <p class="hero-sub">Every frame is tracked and you'll see live progress the whole way — no more staring at a blank page.</p>
+  </div>
+
+  <form class="upload-form reveal" id="video-form">
+    <label class="dropzone" id="video-dropzone" for="video_file">
+      <input type="file" id="video_file" name="video_file" accept=".mp4,.mov,.avi,.mkv,.webm" hidden>
+      <div class="dropzone-icon">
+        <svg viewBox="0 0 48 48" width="34" height="34">
+          <path d="M24 6 L24 30 M24 6 L15 15 M24 6 L33 15" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 30 V38 A3 3 0 0 0 11 41 H37 A3 3 0 0 0 40 38 V30" fill="none" stroke="var(--accent-dim)" stroke-width="2.4"/>
+        </svg>
+      </div>
+      <p class="dropzone-title" id="video-filename">Drag a video here, or click to browse</p>
+      <p class="dropzone-sub">Max 300 MB · MP4, MOV, AVI, MKV, WEBM</p>
+    </label>
+
+    <div class="speed-picker">
+      <span class="speed-picker-label">Processing speed</span>
+      <div class="segmented" id="speed-segmented">
+        <button type="button" class="segmented-option is-active" data-value="fast">
+          <strong>Fast</strong><span>Quickest turnaround, scaled for speed</span>
+        </button>
+        <button type="button" class="segmented-option" data-value="balanced">
+          <strong>Balanced</strong><span>Good accuracy, moderate speed</span>
+        </button>
+        <button type="button" class="segmented-option" data-value="accurate">
+          <strong>Accurate</strong><span>Full resolution, slowest</span>
+        </button>
+      </div>
+      <input type="hidden" id="speed-value" value="fast">
+      <p class="speed-note">First use of a speed setting downloads its model once (a few MB), then it's cached for every run after.</p>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="video-submit">
+      <span class="btn-label">Run pose estimation</span>
+      <span class="btn-spinner" hidden></span>
+    </button>
+    <p class="form-error" id="video-error" hidden></p>
+  </form>
+
+  <div class="progress-card" id="video-progress" hidden>
+    <div class="progress-card-head">
+      <span class="progress-status" id="progress-status">Uploading…</span>
+      <span class="progress-pct mono" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="progress-meta">
+      <span id="progress-frames">Preparing…</span>
+      <span id="progress-elapsed" class="mono">0.0s</span>
+    </div>
+  </div>
+
+  <div class="result-panel" id="video-result" hidden></div>
+</section>
+
+<template id="video-result-template">
+  <div class="result-media wide reveal-in">
+    <video controls></video>
+    <span class="media-tag">Tracked</span>
+  </div>
+  <div class="result-summary-row reveal-in">
+    <p>Landmarks detected on <strong class="mono result-frames"></strong> · <span class="result-elapsed mono"></span></p>
+    <a download class="btn btn-ghost small result-download">Download video</a>
+  </div>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  initDropzone('video-dropzone', 'video_file', 'video-filename');
+
+  // speed segmented control
+  const segmented = document.getElementById('speed-segmented');
+  const speedValue = document.getElementById('speed-value');
+  segmented.addEventListener('click', (e) => {
+    const opt = e.target.closest('.segmented-option');
+    if (!opt) return;
+    segmented.querySelectorAll('.segmented-option').forEach(o => o.classList.remove('is-active'));
+    opt.classList.add('is-active');
+    speedValue.value = opt.dataset.value;
+  });
+
+  const form = document.getElementById('video-form');
+  const submitBtn = document.getElementById('video-submit');
+  const errorEl = document.getElementById('video-error');
+  const fileInput = document.getElementById('video_file');
+
+  const progressCard = document.getElementById('video-progress');
+  const progressFill = document.getElementById('progress-fill');
+  const progressPct = document.getElementById('progress-pct');
+  const progressStatus = document.getElementById('progress-status');
+  const progressFrames = document.getElementById('progress-frames');
+  const progressElapsed = document.getElementById('progress-elapsed');
+
+  const resultPanel = document.getElementById('video-result');
+  const resultTpl = document.getElementById('video-result-template');
+
+  let pollTimer = null;
+
+  function resetProgress() {
+    progressFill.style.width = '0%';
+    progressPct.textContent = '0%';
+    progressStatus.textContent = 'Uploading…';
+    progressFrames.textContent = 'Preparing…';
+    progressElapsed.textContent = '0.0s';
+  }
+
+  async function pollJob(jobId) {
+    try {
+      const res = await fetch(`/api/video/status/${jobId}`);
+      const job = await res.json();
+      if (!res.ok) throw new Error(job.error || 'Lost track of that job.');
+
+      progressFill.style.width = job.progress + '%';
+      progressPct.textContent = job.progress + '%';
+      progressElapsed.textContent = job.elapsed.toFixed(1) + 's';
+
+      if (job.status === 'queued') {
+        progressStatus.textContent = 'Queued…';
+      } else if (job.status === 'processing') {
+        progressStatus.textContent = 'Tracking landmarks…';
+        progressFrames.textContent = job.total_frames
+          ? `Frame ${job.frames_processed} of ${job.total_frames}`
+          : 'Reading video…';
+      } else if (job.status === 'done') {
+        progressStatus.textContent = 'Done';
+        clearInterval(pollTimer);
+        showResult(job.result);
+        setBusy(submitBtn, false, 'Run pose estimation');
+      } else if (job.status === 'error') {
+        clearInterval(pollTimer);
+        errorEl.textContent = job.error || 'Something went wrong while processing.';
+        errorEl.hidden = false;
+        progressCard.hidden = true;
+        setBusy(submitBtn, false, 'Run pose estimation');
+      }
+    } catch (err) {
+      clearInterval(pollTimer);
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+      progressCard.hidden = true;
+      setBusy(submitBtn, false, 'Run pose estimation');
+    }
+  }
+
+  function showResult(result) {
+    progressCard.hidden = true;
+    resultPanel.hidden = false;
+    resultPanel.innerHTML = '';
+    const node = resultTpl.content.cloneNode(true);
+    node.querySelector('video').src = result.output_video_url;
+    node.querySelector('.result-frames').textContent =
+      `${result.frames_with_detection} / ${result.total_frames} frames`;
+    node.querySelector('.result-elapsed').textContent = 'processed in ' + progressElapsed.textContent;
+    node.querySelector('.result-download').href = result.output_video_url;
+    resultPanel.appendChild(node);
+    resultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.hidden = true;
+    if (!fileInput.files || !fileInput.files[0]) {
+      errorEl.textContent = 'Please choose a video first.';
+      errorEl.hidden = false;
+      return;
+    }
+
+    setBusy(submitBtn, true, 'Uploading…');
+    resultPanel.hidden = true;
+    progressCard.hidden = false;
+    resetProgress();
+
+    const data = new FormData();
+    data.append('video_file', fileInput.files[0]);
+    data.append('speed', speedValue.value);
+
+    try {
+      const res = await fetch("{{ url_for('api_video_upload') }}", { method: 'POST', body: data });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Upload failed.');
+
+      setBusy(submitBtn, true, 'Processing…');
+      pollTimer = setInterval(() => pollJob(json.job_id), 600);
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+      progressCard.hidden = true;
+      setBusy(submitBtn, false, 'Run pose estimation');
+    }
+  });
+</script>
+{% endblock %}

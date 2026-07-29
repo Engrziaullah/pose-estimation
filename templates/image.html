@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Image · Kinetra{% endblock %}
+{% block content %}
+
+<section class="mode-page">
+  <div class="mode-page-head reveal">
+    <span class="eyebrow">Mode 01 · Instant</span>
+    <h1>Upload a photo</h1>
+    <p class="hero-sub">Full-body, single-person, well-lit photos work best. JPG, PNG, WEBP, or BMP.</p>
+  </div>
+
+  <form class="upload-form reveal" id="image-form">
+    <label class="dropzone" id="image-dropzone" for="image_file">
+      <input type="file" id="image_file" name="image_file" accept=".png,.jpg,.jpeg,.webp,.bmp" hidden>
+      <div class="dropzone-icon">
+        <svg viewBox="0 0 48 48" width="34" height="34">
+          <path d="M24 6 L24 30 M24 6 L15 15 M24 6 L33 15" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 30 V38 A3 3 0 0 0 11 41 H37 A3 3 0 0 0 40 38 V30" fill="none" stroke="var(--accent-dim)" stroke-width="2.4"/>
+        </svg>
+      </div>
+      <p class="dropzone-title" id="image-filename">Drag a photo here, or click to browse</p>
+      <p class="dropzone-sub">Max 300 MB</p>
+    </label>
+    <button type="submit" class="btn btn-primary" id="image-submit">
+      <span class="btn-label">Run pose estimation</span>
+      <span class="btn-spinner" hidden></span>
+    </button>
+    <p class="form-error" id="image-error" hidden></p>
+  </form>
+
+  <div class="result-panel" id="image-result" hidden></div>
+</section>
+
+<template id="image-result-template">
+  <div class="result-grid reveal-in">
+    <div class="result-media">
+      <img alt="Annotated pose result">
+      <span class="media-tag">33 landmarks tracked</span>
+    </div>
+    <div class="result-data">
+      <h3>Joint angles</h3>
+      <div class="gauge-grid"></div>
+      <div class="result-links">
+        <a download class="btn btn-ghost small download-image">Download image</a>
+        <a download class="btn btn-ghost small download-csv" hidden>Download landmarks (CSV)</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="image-empty-template">
+  <div class="empty-state reveal-in">
+    <svg viewBox="0 0 48 48" width="36" height="36" style="margin-bottom:12px;">
+      <circle cx="24" cy="24" r="20" fill="none" stroke="var(--border)" stroke-width="2"/>
+      <path d="M16 24 L21 29 L32 18" fill="none" stroke="var(--danger)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0" />
+      <path d="M17 17 L31 31 M31 17 L17 31" stroke="var(--danger)" stroke-width="2.4" stroke-linecap="round"/>
+    </svg>
+    <p>No person detected in that image. Try a clearer, well-lit, full-body photo.</p>
+  </div>
+</template>
+
+<template id="gauge-template">
+  <div class="gauge">
+    <div class="gauge-ring">
+      <span class="gauge-value mono"></span>
+    </div>
+    <span class="gauge-label"></span>
+  </div>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  initDropzone('image-dropzone', 'image_file', 'image-filename');
+
+  const form = document.getElementById('image-form');
+  const submitBtn = document.getElementById('image-submit');
+  const errorEl = document.getElementById('image-error');
+  const resultPanel = document.getElementById('image-result');
+  const resultTpl = document.getElementById('image-result-template');
+  const emptyTpl = document.getElementById('image-empty-template');
+  const gaugeTpl = document.getElementById('gauge-template');
+  const fileInput = document.getElementById('image_file');
+
+  const ANGLE_LABELS = {
+    "Right Elbow": "R Elbow", "Left Elbow": "L Elbow",
+    "Right Knee": "R Knee", "Left Knee": "L Knee",
+    "Right Hip": "R Hip", "Left Hip": "L Hip",
+  };
+
+  function buildGauge(label, value) {
+    const node = gaugeTpl.content.cloneNode(true);
+    const pct = Math.min(100, Math.max(0, (value / 180) * 100));
+    node.querySelector('.gauge-ring').style.setProperty('--pct', pct);
+    node.querySelector('.gauge-value').textContent = Math.round(value) + '°';
+    node.querySelector('.gauge-label').textContent = ANGLE_LABELS[label] || label;
+    return node;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.hidden = true;
+    if (!fileInput.files || !fileInput.files[0]) {
+      errorEl.textContent = 'Please choose a photo first.';
+      errorEl.hidden = false;
+      return;
+    }
+
+    setBusy(submitBtn, true, 'Detecting pose…');
+    resultPanel.hidden = true;
+    resultPanel.innerHTML = '';
+
+    const data = new FormData();
+    data.append('image_file', fileInput.files[0]);
+
+    try {
+      const res = await fetch("{{ url_for('api_image_upload') }}", { method: 'POST', body: data });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.');
+
+      resultPanel.hidden = false;
+      if (!json.detected) {
+        resultPanel.appendChild(emptyTpl.content.cloneNode(true));
+      } else {
+        const node = resultTpl.content.cloneNode(true);
+        node.querySelector('img').src = json.output_image_url;
+        const gaugeGrid = node.querySelector('.gauge-grid');
+        Object.entries(json.angles).forEach(([name, value]) => {
+          gaugeGrid.appendChild(buildGauge(name, value));
+        });
+        const dlImg = node.querySelector('.download-image');
+        dlImg.href = json.output_image_url;
+        if (json.csv_url) {
+          const dlCsv = node.querySelector('.download-csv');
+          dlCsv.href = json.csv_url;
+          dlCsv.hidden = false;
+        }
+        resultPanel.appendChild(node);
+      }
+      resultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+    } finally {
+      setBusy(submitBtn, false, 'Run pose estimation');
+    }
+  });
+</script>
+{% endblock %}

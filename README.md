@@ -160,7 +160,6 @@ pose_app/
 ├── requirements.txt
 ├── Dockerfile                # Container image (system libs + gunicorn)
 ├── .dockerignore
-├── render.yaml                # Optional infra-as-code service definition
 ├── templates/
 │   ├── base.html
 │   ├── index.html            # Home page, mode picker
